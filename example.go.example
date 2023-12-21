@@ -1,0 +1,76 @@
+package main
+
+import (
+	"fmt"
+	"log"
+	"net/smtp"
+	"os/exec"
+	"strings"
+
+	"github.com/gocolly/colly/v2"
+	"github.com/pdfcpu/pdfcpu/pkg/api"
+	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu"
+)
+
+func example() {
+   url := "http://example.com"
+   c := colly.NewCollector()
+
+   c.OnHTML("a[href]", func(e *colly.HTMLElement) {
+       link := e.Attr("href")
+       // This would involve checking the link against a database
+       // For simplicity, let's assume we have a function `isNewLink` that does this
+       if isNewLink(link) {
+           downloadPDF(link)
+           keywords := parsePDF("pdf_file.pdf")
+           sendEmail("recipient_email@gmail.com", "New Meeting Agenda", fmt.Sprintf("Keywords found: %v", keywords))
+       }
+   })
+
+   err := c.Visit(url)
+   if err != nil {
+       log.Fatal(err)
+   }
+}
+
+func downloadPDF(link string) {
+   cmd := exec.Command("wget", link)
+   err := cmd.Run()
+   if err != nil {
+       log.Fatal(err)
+   }
+}
+
+func parsePDF(filePath string) []string {
+   conf := pdfcpu.NewDefaultConfiguration()
+   ctx, err := api.ReadContextFile(filePath, conf)
+   if err != nil {
+       log.Fatal(err)
+   }
+   text, err := api.ExtractText(ctx, nil)
+   if err != nil {
+       log.Fatal(err)
+   }
+   return strings.Split(text, " ")
+}
+
+func sendEmail(to, subject, body string) {
+   from := "your_email@gmail.com"
+   pass := "your_password"
+   msg := "From: " + from + "\n" +
+       "To: " + to + "\n" +
+       "Subject: " + subject + "\n\n" +
+       body
+   err := smtp.SendMail("smtp.gmail.com:587",
+       smtp.PlainAuth("", from, pass, "smtp.gmail.com"),
+       from, []string{to}, []byte(msg))
+   if err != nil {
+       log.Fatal(err)
+   }
+}
+
+func isNewLink(link string) bool {
+   // This would involve checking the link against a database
+   // For simplicity, let's assume we always return true
+   return true
+}
